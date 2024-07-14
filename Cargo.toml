@@ -1,0 +1,12 @@
+[package]
+name = "ble_rust_client"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+btleplug = { version = "0.10", features = ["serde"] }
+rand = "0.8.5"
+serde = "1.0.204"
+serde_json = "1.0.120"
+tokio = { version = "1.35.1", features = ["full"] }
+uuid = "1.8.0"
