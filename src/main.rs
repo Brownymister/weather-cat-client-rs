@@ -2,18 +2,53 @@ use btleplug::api::{Central, Manager as _, Peripheral as _, ScanFilter};
 use btleplug::platform::{Adapter, Manager, Peripheral};
 use std::error::Error;
 use std::str::FromStr;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 use std::thread;
 use tokio::time;
 use uuid::Uuid;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
+use chrono::serde::ts_seconds;
+use rsa::{RsaPrivateKey, Pkcs1v15Encrypt};
+use rsa::pkcs1::DecodeRsaPrivateKey;
 
-#[derive(Serialize, Deserialize)]
-struct TempTransPacket {
-    temp: f64,
-    name: String,
+
+/// RSA-2048 PKCS#8 private key encoded as PEM
+const PRIV_PEM: &str = include_str!("../private_key.pem");
+
+pub fn serialize_dt<S>(
+    dt: &Option<chrono::DateTime<chrono::Utc>>, 
+    serializer: S
+) -> Result<S::Ok, S::Error> 
+where
+    S: Serializer {
+    match dt {
+        Some(dt) => ts_seconds::serialize(dt, serializer),
+        _ => unreachable!(),
+    }
 }
 
+
+#[derive(Serialize, Deserialize, Debug)]
+struct TempTransPacket {
+    #[serde(rename(deserialize = "t"))]
+    pub temp: f64,
+    #[serde(rename(deserialize = "h"))]
+    pub hum: f64,
+    pub name: String,
+    #[serde(serialize_with = "serialize_dt", skip_serializing_if  = "Option::is_none")]
+    pub time_stamp: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+impl Default for TempTransPacket {
+    fn default() -> Self {
+        return Self {
+            temp: 0.0,
+            hum: 0.0,
+            name: "".to_string(),
+            time_stamp: Some(chrono::Utc::now()),
+        }
+    }
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -39,15 +74,28 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let chars = weather_cat.characteristics();
     chars.iter().for_each(|c| println!("{}", c));
     let cmd_char = chars.iter().find(|c| c.uuid == Uuid::from_str("00002a6e-0000-1000-8000-00805f9b34fb").unwrap()).unwrap();
-    // loop {
+
+    thread::sleep(Duration::from_millis(1000));
     println!("Reading from weather_cat");
     let res = weather_cat.read(cmd_char).await.unwrap();
+    // let transdata_json = decode_rsa(hex_to_str(res)?);
     let transdata_json = hex_to_str(res)?;
-    let trans_data: TempTransPacket = serde_json::from_str(&transdata_json)?;
-    println!("{}");
-    // thread::sleep(Duration::from_millis(1000))
-    // }
+    println!("transdata_json {}",transdata_json);
+    let mut trans_data: TempTransPacket = serde_json::from_str(&transdata_json)?;
+    if trans_data.time_stamp.is_none() {
+        trans_data.time_stamp = Some(chrono::Utc::now());
+    }
+    println!("{:?}", trans_data);
+
     return Ok(());
+}
+
+
+fn decode_rsa(enc_data: String)-> String {
+    let key = RsaPrivateKey::from_pkcs1_pem(PRIV_PEM).unwrap();
+    // Decrypt
+    let dec_data = key.decrypt(Pkcs1v15Encrypt, enc_data.as_bytes()).expect("failed to decrypt");
+    return std::string::String::from_utf8(dec_data).expect("to work");
 }
 
 /// parse the ascii string from the vec u8 bytes
