@@ -13,7 +13,7 @@ use rsa::pkcs1::DecodeRsaPrivateKey;
 
 
 /// RSA-2048 PKCS#8 private key encoded as PEM
-const PRIV_PEM: &str = include_str!("../private_key.pem");
+const PRIV_PEM: &str = include_str!("../private_key.test.pem");
 
 pub fn serialize_dt<S>(
     dt: &Option<chrono::DateTime<chrono::Utc>>, 
