@@ -9,12 +9,6 @@ use tokio::time;
 use uuid::Uuid;
 use serde::{Deserialize, Serialize, Serializer};
 use chrono::serde::ts_seconds;
-use rsa::{RsaPrivateKey, Pkcs1v15Encrypt};
-use rsa::pkcs1::DecodeRsaPrivateKey;
-
-
-/// RSA-2048 PKCS#8 private key encoded as PEM
-const PRIV_PEM: &str = include_str!("../private_key.test.pem");
 
 pub fn serialize_dt<S>(
     dt: &Option<chrono::DateTime<chrono::Utc>>, 
