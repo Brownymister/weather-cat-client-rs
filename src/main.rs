@@ -77,13 +77,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
         time_stamp: chrono::Utc::now(),
     };
     println!("{:?}", data);
-    save_to_file(data, "./temp_store.json".to_string())?;
+    let args: Vec<String> = std::env::args().collect();
+    let mut path = "./temp_store.json";
+    if args.len() == 1 {
+        path = args.get(0).unwrap();
+    }
+    save_to_file(data, path)?;
 
     return Ok(());
 }
 
-fn save_to_file(d: TempratureStore, file_path: String) -> Result<(), std::io::Error>{
-    let mut file = std::fs::File::open(&file_path)?;
+fn save_to_file(d: TempratureStore, file_path: &str) -> Result<(), std::io::Error>{
+    let mut file = std::fs::File::open(file_path)?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
 
