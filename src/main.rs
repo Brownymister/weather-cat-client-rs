@@ -1,6 +1,7 @@
 use btleplug::api::{Central, Manager as _, Peripheral as _, ScanFilter};
 use btleplug::platform::{Adapter, Manager, Peripheral};
 use std::error::Error;
+use std::io::prelude::*;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 use std::thread;
@@ -27,27 +28,20 @@ where
     }
 }
 
-
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 struct TempTransPacket {
-    #[serde(rename(deserialize = "t"))]
-    pub temp: f64,
-    #[serde(rename(deserialize = "h"))]
-    pub hum: f64,
+    pub t: f64,
+    pub h: f64,
     pub name: String,
-    #[serde(serialize_with = "serialize_dt", skip_serializing_if  = "Option::is_none")]
-    pub time_stamp: Option<chrono::DateTime<chrono::Utc>>,
 }
 
-impl Default for TempTransPacket {
-    fn default() -> Self {
-        return Self {
-            temp: 0.0,
-            hum: 0.0,
-            name: "".to_string(),
-            time_stamp: Some(chrono::Utc::now()),
-        }
-    }
+#[derive(Serialize, Deserialize, Debug)]
+struct TempratureStore {
+    pub temp: f64,
+    pub hum: f64,
+    pub name: String,
+    #[serde(with = "chrono::serde::ts_seconds")]
+    pub time_stamp: chrono::DateTime<chrono::Utc>,
 }
 
 #[tokio::main]
@@ -81,21 +75,34 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // let transdata_json = decode_rsa(hex_to_str(res)?);
     let transdata_json = hex_to_str(res)?;
     println!("transdata_json {}",transdata_json);
-    let mut trans_data: TempTransPacket = serde_json::from_str(&transdata_json)?;
-    if trans_data.time_stamp.is_none() {
-        trans_data.time_stamp = Some(chrono::Utc::now());
-    }
-    println!("{:?}", trans_data);
+    let trans_data: TempTransPacket = serde_json::from_str(&transdata_json)?;
+    let data = TempratureStore {
+        temp: trans_data.t,
+        hum: trans_data.h,
+        name: trans_data.name,
+        time_stamp: chrono::Utc::now(),
+    };
+    println!("{:?}", data);
+    save_to_file(data, "./temp_store.json".to_string())?;
 
     return Ok(());
 }
 
+fn save_to_file(d: TempratureStore, file_path: String) -> Result<(), std::io::Error>{
+    let mut file = std::fs::File::open(&file_path)?;
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)?;
 
-fn decode_rsa(enc_data: String)-> String {
-    let key = RsaPrivateKey::from_pkcs1_pem(PRIV_PEM).unwrap();
-    // Decrypt
-    let dec_data = key.decrypt(Pkcs1v15Encrypt, enc_data.as_bytes()).expect("failed to decrypt");
-    return std::string::String::from_utf8(dec_data).expect("to work");
+    let mut temp_store: Vec<TempratureStore> = serde_json::from_str(&contents)?;
+    temp_store.push(d);
+
+    let j = serde_json::to_string(&temp_store)?;
+
+    let mut f = std::fs::OpenOptions::new().write(true).open(file_path)?;
+    f.write_all(j.as_bytes())?;
+    f.flush()?;
+
+    return Ok(());
 }
 
 /// parse the ascii string from the vec u8 bytes
