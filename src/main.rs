@@ -100,6 +100,7 @@ fn save_to_file(d: TempratureStore, file_path: &str) -> Result<(), std::io::Erro
     let mut f = std::fs::OpenOptions::new().write(true).open(file_path)?;
     f.write_all(j.as_bytes())?;
     f.flush()?;
+    println!("saved to path: {}", file_path);
 
     return Ok(());
 }
